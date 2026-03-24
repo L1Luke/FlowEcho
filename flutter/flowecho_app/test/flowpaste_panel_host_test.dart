@@ -11,6 +11,56 @@ class _FakeBridgeApi implements FlowEchoBridgeApi {
   final List<PastePolicy> setPolicyCalls = <PastePolicy>[];
 
   @override
+  Future<PairingChallenge> startPairing(StartPairingRequest request) async {
+    return PairingChallenge(
+      peerIp: request.peerIp,
+      listenPort: 47000,
+      otpCode: "123456",
+      expiresAtMs: 1700000060000,
+      attemptsRemaining: 5,
+    );
+  }
+
+  @override
+  Future<TransferOutcome> sendText(SendTextRequest request) async {
+    return TransferOutcome(
+      sessionId: "tx-text-1",
+      resumeToken: "resume-text-1",
+      state: TransferState.completed,
+      bytesTransferred: request.text.length,
+      totalBytes: request.text.length,
+      missingChunks: const <int>[],
+      message: "ok",
+    );
+  }
+
+  @override
+  Future<TransferOutcome> sendFile(SendFileRequest request) async {
+    return TransferOutcome(
+      sessionId: "tx-file-1",
+      resumeToken: "resume-file-1",
+      state: TransferState.pendingResume,
+      bytesTransferred: 1,
+      totalBytes: 2,
+      missingChunks: const <int>[1],
+      message: "resume",
+    );
+  }
+
+  @override
+  Future<TransferOutcome> resumeTransfer(ResumeTransferRequest request) async {
+    return TransferOutcome(
+      sessionId: "tx-file-1",
+      resumeToken: request.resumeToken,
+      state: TransferState.completed,
+      bytesTransferred: 2,
+      totalBytes: 2,
+      missingChunks: const <int>[],
+      message: "done",
+    );
+  }
+
+  @override
   Future<PasteResult> applyPaste(ApplyPasteRequest request) {
     throw UnimplementedError();
   }
@@ -103,6 +153,7 @@ void main() {
     expect(bridge.setPolicyCalls.length, 1);
     expect(bridge.setPolicyCalls.single.mode, PastePolicyMode.nativeDefault);
     expect(find.byKey(const Key("flowpaste_title")), findsOneWidget);
+    expect(find.byKey(const Key("flowecho_lan_title")), findsOneWidget);
 
     controller.dispose();
   });

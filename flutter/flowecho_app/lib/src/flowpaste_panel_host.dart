@@ -4,6 +4,7 @@ import "dart:convert";
 import "package:flutter/widgets.dart";
 
 import "flowecho_bridge_api.dart";
+import "flowecho_lan_panel.dart";
 import "flowecho_models.dart";
 import "flowpaste_panel_controller.dart";
 import "flowpaste_panel_facade.dart";
@@ -71,10 +72,19 @@ class _FlowPastePanelHostState extends State<FlowPastePanelHost> {
         height: 0,
       );
     }
-    return FlowPastePanelWidget(
-      facade: _facade,
-      previewManifest: widget.previewManifest,
-      previewFileName: widget.previewFileName,
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          FlowPastePanelWidget(
+            facade: _facade,
+            previewManifest: widget.previewManifest,
+            previewFileName: widget.previewFileName,
+          ),
+          const SizedBox(height: 24),
+          FlowEchoLanPanel(bridge: widget.bridge),
+        ],
+      ),
     );
   }
 
