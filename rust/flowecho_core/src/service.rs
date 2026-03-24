@@ -1,3 +1,4 @@
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::error::{ErrorCode, FlowError, FlowResult};
@@ -6,6 +7,9 @@ use crate::protocol::{
     PublishClipboardRequest, SetPastePolicyResponse, StartTransferRequest, SyncAck,
     TransferSession, TrustState,
 };
+use crate::transfer::build_resume_token;
+
+static SESSION_SEQ: AtomicU64 = AtomicU64::new(1);
 
 pub struct FlowEchoService;
 
@@ -52,11 +56,13 @@ impl FlowEchoService {
                 "payload_id and target_device are required",
             ));
         }
+        let seq = SESSION_SEQ.fetch_add(1, Ordering::Relaxed);
+        let session_id = format!("tx-{}-{}-{}", req.target_device, req.payload_id, seq);
         Ok(TransferSession {
-            session_id: format!("tx-{}-{}", req.target_device, req.payload_id),
+            session_id: session_id.clone(),
             chunk_size: 256 * 1024,
             offset: 0,
-            resume_token: format!("resume-{}", req.payload_id),
+            resume_token: build_resume_token(&session_id, &req.payload_id, &req.target_device),
             throughput_hint_kbps: 51200,
         })
     }

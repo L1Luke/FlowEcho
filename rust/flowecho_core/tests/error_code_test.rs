@@ -13,12 +13,16 @@ fn error_codes_are_unique_and_stable() {
         ErrorCode::DecryptionFailed as u16,
         ErrorCode::PasteBypassed as u16,
         ErrorCode::TransferNotFound as u16,
+        ErrorCode::HashMismatch as u16,
+        ErrorCode::InvalidChunk as u16,
+        ErrorCode::TransferIncomplete as u16,
         ErrorCode::Internal as u16,
     ];
     let uniq: HashSet<u16> = codes.into_iter().collect();
     assert_eq!(uniq.len(), codes.len(), "duplicate error codes found");
     assert!(uniq.contains(&1001));
     assert!(uniq.contains(&1102));
+    assert!(uniq.contains(&1301));
     assert!(uniq.contains(&9000));
 }
 
