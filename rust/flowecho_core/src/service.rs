@@ -2,6 +2,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::error::{ErrorCode, FlowError, FlowResult};
+use crate::paste_router::decide_route;
 use crate::protocol::{
     ApplyPasteRequest, DeviceTrust, PairDeviceRequest, PastePolicy, PasteResult, PasteSource,
     PublishClipboardRequest, SetPastePolicyResponse, StartTransferRequest, SyncAck,
@@ -68,20 +69,24 @@ impl FlowEchoService {
     }
 
     pub fn apply_paste(&self, req: ApplyPasteRequest) -> FlowResult<PasteResult> {
-        match req.mode {
-            crate::protocol::PasteMode::FlowEcho => Ok(PasteResult {
-                applied: true,
-                source: PasteSource::FlowEcho,
-                restored_native_snapshot: false,
-                message: "FlowEcho payload applied".to_string(),
-            }),
-            crate::protocol::PasteMode::NativeRestore => Ok(PasteResult {
-                applied: true,
-                source: PasteSource::Native,
-                restored_native_snapshot: true,
-                message: "Native clipboard restored".to_string(),
-            }),
-        }
+        self.apply_paste_with_policy(req, self.default_paste_policy())
+    }
+
+    pub fn apply_paste_with_policy(
+        &self,
+        req: ApplyPasteRequest,
+        policy: PastePolicy,
+    ) -> FlowResult<PasteResult> {
+        let decision = decide_route(req.mode, &policy, req.route_context.as_ref());
+        Ok(PasteResult {
+            applied: true,
+            source: match decision.source {
+                PasteSource::FlowEcho => PasteSource::FlowEcho,
+                PasteSource::Native => PasteSource::Native,
+            },
+            restored_native_snapshot: decision.restored_native_snapshot,
+            message: decision.message,
+        })
     }
 
     pub fn set_paste_policy(&self, _req: PastePolicy) -> FlowResult<SetPastePolicyResponse> {
@@ -93,5 +98,17 @@ impl FlowEchoService {
             saved: true,
             effective_at_ms: now,
         })
+    }
+
+    fn default_paste_policy(&self) -> PastePolicy {
+        PastePolicy {
+            mode: crate::protocol::PastePolicyMode::FlowEchoDefault,
+            bypass_rules: vec![
+                "password_field".to_string(),
+                "rdp".to_string(),
+                "terminal_high_risk".to_string(),
+            ],
+            app_scope: crate::protocol::AppScope::AllApps,
+        }
     }
 }
