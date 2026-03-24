@@ -92,9 +92,40 @@ pub enum PasteMode {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub enum Platform {
+    #[serde(rename = "windows")]
+    Windows,
+    #[serde(rename = "macos")]
+    MacOs,
+    #[serde(rename = "ios")]
+    Ios,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub enum PressedHotkey {
+    #[serde(rename = "default_paste")]
+    DefaultPaste,
+    #[serde(rename = "native_fallback_paste")]
+    NativeFallbackPaste,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct PasteRouteContext {
+    pub platform: Platform,
+    pub hotkey: PressedHotkey,
+    pub is_password_field: bool,
+    pub is_remote_session: bool,
+    pub is_terminal_session: bool,
+    pub is_in_app_entry: bool,
+    pub app_in_scope: bool,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct ApplyPasteRequest {
     pub mode: PasteMode,
     pub payload_id: Option<String>,
+    #[serde(default)]
+    pub route_context: Option<PasteRouteContext>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
