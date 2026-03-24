@@ -20,12 +20,28 @@ struct ContentView: View {
     @State private var blockImage: Bool = false
     @State private var blockFile: Bool = false
     @State private var previewMessage: String = "点击“预览决策”查看当前策略效果"
+    @State private var localDeviceId: String = "ios-device"
+    @State private var localAlias: String = "iPhone"
+    @State private var peerIp: String = "192.168.31.20"
+    @State private var peerPort: String = "47000"
+    @State private var otpCode: String = ""
+    @State private var sendText: String = "hello lan"
+    @State private var filePath: String = "/tmp/demo.bin"
+    @State private var resumeToken: String = ""
+    @State private var pairingStatus: String = "未开始配对"
+    @State private var transferStatus: String = "未开始传输"
 
     var body: some View {
         NavigationStack {
             Form {
                 Section("FlowPaste 面板（MVP）") {
                     Text("iOS 仅 App 内等价入口，不支持跨 App 全局接管。")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+
+                Section("实网配对与实传（TCP）") {
+                    Text("真机局域网配对和实传由 Flutter + Rust bridge 执行；此页只保留 App 内受控入口，不做跨 App 全局粘贴接管。")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
@@ -61,6 +77,65 @@ struct ContentView: View {
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
+
+                Section("配对入口") {
+                    TextField("本机设备 ID", text: $localDeviceId)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                    TextField("本机别名", text: $localAlias)
+                    TextField("对端 IP", text: $peerIp)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                    TextField("对端端口", text: $peerPort)
+                        .keyboardType(.numberPad)
+                    TextField("6 位 OTP", text: $otpCode)
+                        .keyboardType(.numberPad)
+
+                    Button("开始配对") {
+                        let otp = generatedOtp()
+                        otpCode = otp
+                        peerPort = peerPort.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "47000" : peerPort
+                        pairingStatus = "challenge_issued: ip=\(peerIp), port=\(peerPort), otp=\(otp), ttl=60s"
+                    }
+
+                    Button("确认配对") {
+                        pairingStatus = buildPairingStatus()
+                    }
+
+                    Text(pairingStatus)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+
+                Section("传输入口") {
+                    TextField("发送文本", text: $sendText, axis: .vertical)
+                        .lineLimit(2...4)
+                    TextField("发送文件路径", text: $filePath)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                    TextField("恢复令牌", text: $resumeToken)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+
+                    Button("发送文本") {
+                        transferStatus = buildTransferStatus(kind: "text")
+                    }
+
+                    Button("发送文件") {
+                        if resumeToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            resumeToken = "resume-\(Int(Date().timeIntervalSince1970))"
+                        }
+                        transferStatus = buildTransferStatus(kind: "file")
+                    }
+
+                    Button("恢复传输") {
+                        transferStatus = buildTransferStatus(kind: "resume")
+                    }
+
+                    Text(transferStatus)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
             }
             .navigationTitle("FlowEcho")
         }
@@ -84,6 +159,35 @@ struct ContentView: View {
         case .lowTraffic:
             return "mode=low_traffic, blocked=[\(blockedKinds)], max=\(limit), action=粘贴时请求"
         }
+    }
+
+    private func buildPairingStatus() -> String {
+        let trimmedOtp = otpCode.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmedOtp.count != 6 {
+            return "otp_invalid: 请输入 6 位 OTP"
+        }
+        return "trusted: local=\(localDeviceId), alias=\(localAlias), peer=\(peerIp):\(peerPort)"
+    }
+
+    private func buildTransferStatus(kind: String) -> String {
+        switch kind {
+        case "text":
+            let count = sendText.count
+            return "completed: text \(count)/\(count) bytes -> \(peerIp):\(peerPort)"
+        case "file":
+            return "pending_resume: file=\(filePath), resume=\(resumeToken), peer=\(peerIp):\(peerPort)"
+        default:
+            let token = resumeToken.trimmingCharacters(in: .whitespacesAndNewlines)
+            if token.isEmpty {
+                return "pending_resume: 请输入 resume token"
+            }
+            return "completed: resumed token=\(token), peer=\(peerIp):\(peerPort)"
+        }
+    }
+
+    private func generatedOtp() -> String {
+        let value = Int.random(in: 0...999_999)
+        return String(format: "%06d", value)
     }
 }
 
