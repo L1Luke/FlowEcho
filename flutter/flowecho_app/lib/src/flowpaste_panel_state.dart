@@ -15,6 +15,40 @@ class FlowPastePreferences {
   final Set<PayloadType> blockedTypes;
   final int? maxAutoSyncBytes;
 
+  Map<String, Object?> toJson() {
+    return {
+      "mode": switch (mode) {
+        FlowPasteMode.lowLatency => "low_latency",
+        FlowPasteMode.lowTraffic => "low_traffic",
+      },
+      "default_save_directory": defaultSaveDirectory,
+      "blocked_types": blockedTypes.map((e) => e.name).toList()..sort(),
+      "max_auto_sync_bytes": maxAutoSyncBytes,
+    };
+  }
+
+  factory FlowPastePreferences.fromJson(Map<String, Object?> json) {
+    final modeRaw = json["mode"] as String? ?? "low_latency";
+    final blockedRaw = (json["blocked_types"] as List<dynamic>? ?? const <dynamic>[]);
+    return FlowPastePreferences(
+      mode: modeRaw == "low_traffic"
+          ? FlowPasteMode.lowTraffic
+          : FlowPasteMode.lowLatency,
+      defaultSaveDirectory:
+          (json["default_save_directory"] as String?) ?? "/Users/luke/Downloads",
+      blockedTypes: blockedRaw
+          .map((item) => item as String)
+          .map(
+            (name) => PayloadType.values.firstWhere(
+              (value) => value.name == name,
+              orElse: () => PayloadType.text,
+            ),
+          )
+          .toSet(),
+      maxAutoSyncBytes: (json["max_auto_sync_bytes"] as num?)?.toInt(),
+    );
+  }
+
   FlowPastePreferences copyWith({
     FlowPasteMode? mode,
     String? defaultSaveDirectory,

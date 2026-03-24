@@ -83,4 +83,31 @@ void main() {
     await sub.cancel();
     controller.dispose();
   });
+
+  test("controller can replace full preferences snapshot", () {
+    final controller = FlowPastePanelController(
+      initialPreferences: FlowPastePreferences(
+        mode: FlowPasteMode.lowLatency,
+        defaultSaveDirectory: "/tmp/flowecho",
+      ),
+    );
+
+    controller.replacePreferences(
+      FlowPastePreferences(
+        mode: FlowPasteMode.lowTraffic,
+        defaultSaveDirectory: "/Users/luke/Desktop",
+        blockedTypes: const {PayloadType.file},
+        maxAutoSyncBytes: 42,
+      ),
+    );
+
+    expect(controller.state.preferences.mode, FlowPasteMode.lowTraffic);
+    expect(
+      controller.state.preferences.defaultSaveDirectory,
+      "/Users/luke/Desktop",
+    );
+    expect(controller.state.preferences.blockedTypes, {PayloadType.file});
+    expect(controller.state.preferences.maxAutoSyncBytes, 42);
+    controller.dispose();
+  });
 }
