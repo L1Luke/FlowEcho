@@ -4,3 +4,5 @@
 /.dartServer/
 /.pub-cache/
 /FlowEcho.xcodeproj/project.xcworkspace/xcuserdata/
+/flutter/flowecho_app/.dart_tool/
+/flutter/flowecho_app/pubspec.lock
