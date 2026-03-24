@@ -136,3 +136,34 @@ fn ios_in_app_entry_can_use_flowecho() {
         .expect("apply");
     assert_eq!(result.source, PasteSource::FlowEcho);
 }
+
+#[test]
+fn set_paste_policy_changes_apply_paste_behavior() {
+    let service = FlowEchoService::default();
+
+    service
+        .set_paste_policy(PastePolicy {
+            mode: PastePolicyMode::NativeDefault,
+            bypass_rules: vec!["password_field".to_string()],
+            app_scope: AppScope::AllApps,
+        })
+        .expect("save policy");
+
+    let result = service
+        .apply_paste(ApplyPasteRequest {
+            mode: PasteMode::FlowEcho,
+            payload_id: Some("payload-1".to_string()),
+            route_context: Some(PasteRouteContext {
+                platform: Platform::MacOs,
+                hotkey: PressedHotkey::DefaultPaste,
+                is_password_field: false,
+                is_remote_session: false,
+                is_terminal_session: false,
+                is_in_app_entry: true,
+                app_in_scope: true,
+            }),
+        })
+        .expect("apply");
+
+    assert_eq!(result.source, PasteSource::Native);
+}

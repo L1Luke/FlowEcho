@@ -1,4 +1,5 @@
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{OnceLock, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::error::{ErrorCode, FlowError, FlowResult};
@@ -11,6 +12,7 @@ use crate::protocol::{
 use crate::transfer::build_resume_token;
 
 static SESSION_SEQ: AtomicU64 = AtomicU64::new(1);
+static PASTE_POLICY_STORE: OnceLock<RwLock<PastePolicy>> = OnceLock::new();
 
 pub struct FlowEchoService;
 
@@ -69,7 +71,7 @@ impl FlowEchoService {
     }
 
     pub fn apply_paste(&self, req: ApplyPasteRequest) -> FlowResult<PasteResult> {
-        self.apply_paste_with_policy(req, self.default_paste_policy())
+        self.apply_paste_with_policy(req, self.current_paste_policy())
     }
 
     pub fn apply_paste_with_policy(
@@ -89,7 +91,13 @@ impl FlowEchoService {
         })
     }
 
-    pub fn set_paste_policy(&self, _req: PastePolicy) -> FlowResult<SetPastePolicyResponse> {
+    pub fn set_paste_policy(&self, req: PastePolicy) -> FlowResult<SetPastePolicyResponse> {
+        let store = self.policy_store();
+        let mut guard = store
+            .write()
+            .map_err(|_| FlowError::new(ErrorCode::Internal, "policy lock poisoned"))?;
+        *guard = req;
+
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_err(|_| FlowError::new(ErrorCode::Internal, "system clock failure"))?
@@ -110,5 +118,17 @@ impl FlowEchoService {
             ],
             app_scope: crate::protocol::AppScope::AllApps,
         }
+    }
+
+    fn current_paste_policy(&self) -> PastePolicy {
+        let store = self.policy_store();
+        match store.read() {
+            Ok(guard) => guard.clone(),
+            Err(_) => self.default_paste_policy(),
+        }
+    }
+
+    fn policy_store(&self) -> &'static RwLock<PastePolicy> {
+        PASTE_POLICY_STORE.get_or_init(|| RwLock::new(self.default_paste_policy()))
     }
 }
