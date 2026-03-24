@@ -11,6 +11,7 @@ fn error_codes_are_unique_and_stable() {
         ErrorCode::UnsupportedTransport as u16,
         ErrorCode::PeerUnreachable as u16,
         ErrorCode::SessionClosed as u16,
+        ErrorCode::PairOtpExpired as u16,
         ErrorCode::HandshakeFailed as u16,
         ErrorCode::EncryptionFailed as u16,
         ErrorCode::DecryptionFailed as u16,
@@ -25,6 +26,7 @@ fn error_codes_are_unique_and_stable() {
     assert_eq!(uniq.len(), codes.len(), "duplicate error codes found");
     assert!(uniq.contains(&1001));
     assert!(uniq.contains(&1004));
+    assert!(uniq.contains(&1007));
     assert!(uniq.contains(&1102));
     assert!(uniq.contains(&1301));
     assert!(uniq.contains(&9000));

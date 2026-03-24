@@ -11,6 +11,7 @@ pub enum ErrorCode {
     UnsupportedTransport = 1004,
     PeerUnreachable = 1005,
     SessionClosed = 1006,
+    PairOtpExpired = 1007,
     HandshakeFailed = 1100,
     EncryptionFailed = 1101,
     DecryptionFailed = 1102,
