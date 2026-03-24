@@ -62,6 +62,11 @@ class FlowPastePanelController {
     _emit(preview: _state.preview);
   }
 
+  void replacePreferences(FlowPastePreferences preferences) {
+    _preferences = preferences;
+    _emit(preview: null);
+  }
+
   FlowPasteDecisionPreview previewDecision({
     required PayloadManifest manifest,
     required String fileName,
@@ -86,8 +91,7 @@ class FlowPastePanelController {
           ? PastePolicyMode.flowechoDefault
           : PastePolicyMode.nativeDefault,
       bypassRules:
-          bypassRules ??
-          const ["password_field", "rdp", "terminal_high_risk"],
+          bypassRules ?? const ["password_field", "rdp", "terminal_high_risk"],
       appScope: appScope ?? AppScope.allApps,
     );
   }
