@@ -118,6 +118,93 @@ fn expired_otp_returns_pair_otp_expired() {
     assert_eq!(err.code, ErrorCode::PairOtpExpired);
 }
 
+#[test]
+fn invalid_otp_times_out_after_five_failures() {
+    let mut coordinator = PairingCoordinator::default();
+    let remote = generate_handshake_keypair();
+    let challenge = coordinator
+        .issue_challenge(
+            PairChallengeRequest {
+                local_device_id: "mac-mini".to_string(),
+                local_alias: "Luke Mac".to_string(),
+                peer_ip: "192.168.1.88".to_string(),
+            },
+            NOW_MS,
+        )
+        .expect("issue challenge");
+
+    for attempt in 0..5 {
+        let err = coordinator
+            .authenticate(
+                PairAuthenticationRequest {
+                    challenge_id: challenge.challenge_id.clone(),
+                    peer_ip: challenge.peer_ip.clone(),
+                    remote_device_id: "iphone-15".to_string(),
+                    remote_alias: "Luke iPhone".to_string(),
+                    otp_code: "000000".to_string(),
+                    remote_public_key: hex_encode(remote.public_key),
+                },
+                NOW_MS + attempt,
+            )
+            .expect_err("must fail");
+        assert_eq!(err.code, ErrorCode::PairOtpInvalid);
+    }
+
+    let timeout = coordinator
+        .authenticate(
+            PairAuthenticationRequest {
+                challenge_id: challenge.challenge_id,
+                peer_ip: challenge.peer_ip,
+                remote_device_id: "iphone-15".to_string(),
+                remote_alias: "Luke iPhone".to_string(),
+                otp_code: challenge.otp_code,
+                remote_public_key: hex_encode(remote.public_key),
+            },
+            NOW_MS + 10,
+        )
+        .expect_err("must fail");
+
+    assert_eq!(timeout.code, ErrorCode::PairTimeout);
+}
+
+#[test]
+fn authenticated_challenge_rejects_replay() {
+    let mut coordinator = PairingCoordinator::default();
+    let remote = generate_handshake_keypair();
+    let challenge = coordinator
+        .issue_challenge(
+            PairChallengeRequest {
+                local_device_id: "mac-mini".to_string(),
+                local_alias: "Luke Mac".to_string(),
+                peer_ip: "192.168.1.99".to_string(),
+            },
+            NOW_MS,
+        )
+        .expect("issue challenge");
+
+    let request = PairAuthenticationRequest {
+        challenge_id: challenge.challenge_id.clone(),
+        peer_ip: challenge.peer_ip.clone(),
+        remote_device_id: "iphone-15".to_string(),
+        remote_alias: "Luke iPhone".to_string(),
+        otp_code: challenge.otp_code.clone(),
+        remote_public_key: hex_encode(remote.public_key),
+    };
+
+    coordinator
+        .authenticate(request.clone(), NOW_MS + 1)
+        .expect("authenticate");
+    coordinator
+        .trust_authenticated(&challenge.challenge_id)
+        .expect("trust");
+
+    let replay = coordinator
+        .authenticate(request, NOW_MS + 2)
+        .expect_err("must fail");
+
+    assert_eq!(replay.code, ErrorCode::PairOtpInvalid);
+}
+
 fn hex_encode(bytes: [u8; 32]) -> String {
     bytes.into_iter().map(|byte| format!("{byte:02x}")).collect()
 }

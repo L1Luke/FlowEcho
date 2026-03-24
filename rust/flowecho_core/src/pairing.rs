@@ -108,11 +108,18 @@ impl PairingCoordinator {
         if req.peer_ip != pending.challenge.peer_ip {
             return Err(FlowError::new(ErrorCode::InvalidRequest, "peer_ip mismatch"));
         }
+        if pending.challenge.attempts_remaining == 0 {
+            return Err(FlowError::new(ErrorCode::PairTimeout, "pairing challenge timed out"));
+        }
+        if pending.challenge.state != PairState::ChallengeIssued {
+            return Err(FlowError::new(ErrorCode::PairOtpInvalid, "otp already consumed"));
+        }
         if now_ms > pending.challenge.expires_at_ms {
             return Err(FlowError::new(ErrorCode::PairOtpExpired, "otp expired"));
         }
         if req.otp_code != pending.challenge.otp_code {
-            return Err(FlowError::new(ErrorCode::InvalidVerifyCode, "otp invalid"));
+            pending.challenge.attempts_remaining -= 1;
+            return Err(FlowError::new(ErrorCode::PairOtpInvalid, "otp invalid"));
         }
 
         let session_key = derive_session_key(
