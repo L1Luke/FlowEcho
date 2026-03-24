@@ -4,3 +4,4 @@ export "src/flowecho_models.dart";
 export "src/flowpaste_panel_controller.dart";
 export "src/flowpaste_panel_facade.dart";
 export "src/flowpaste_panel_state.dart";
+export "src/flowpaste_panel_widget.dart";
