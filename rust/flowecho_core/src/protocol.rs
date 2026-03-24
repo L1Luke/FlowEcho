@@ -1,9 +1,28 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct StartPairingRequest {
+    pub local_device_id: String,
+    pub local_alias: String,
+    pub peer_ip: String,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct PairingChallenge {
+    pub peer_ip: String,
+    pub listen_port: u16,
+    pub otp_code: String,
+    pub expires_at_ms: u64,
+    pub attempts_remaining: u8,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct PairDeviceRequest {
-    pub request_qr: String,
-    pub verify_code: String,
+    pub peer_ip: String,
+    pub peer_port: u16,
+    pub otp_code: String,
+    pub local_device_id: String,
+    pub local_alias: String,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
@@ -81,6 +100,46 @@ pub struct TransferSession {
     pub offset: u64,
     pub resume_token: String,
     pub throughput_hint_kbps: u32,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct SendTextRequest {
+    pub peer_ip: String,
+    pub peer_port: u16,
+    pub text: String,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct SendFileRequest {
+    pub peer_ip: String,
+    pub peer_port: u16,
+    pub file_path: String,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ResumeTransferRequest {
+    pub peer_ip: String,
+    pub peer_port: u16,
+    pub resume_token: String,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub enum TransferState {
+    #[serde(rename = "completed")]
+    Completed,
+    #[serde(rename = "pending_resume")]
+    PendingResume,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct TransferOutcome {
+    pub session_id: String,
+    pub resume_token: String,
+    pub state: TransferState,
+    pub bytes_transferred: u64,
+    pub total_bytes: u64,
+    pub missing_chunks: Vec<u32>,
+    pub message: String,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]

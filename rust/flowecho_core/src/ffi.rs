@@ -8,6 +8,7 @@ use serde_json::json;
 use crate::error::{ErrorCode, FlowError};
 use crate::protocol::{
     ApplyPasteRequest, PairDeviceRequest, PastePolicy, PublishClipboardRequest,
+    ResumeTransferRequest, SendFileRequest, SendTextRequest, StartPairingRequest,
     StartTransferRequest,
 };
 use crate::service::FlowEchoService;
@@ -49,32 +50,58 @@ fn parse_request<TReq: DeserializeOwned>(input_ptr: *const c_char) -> Result<TRe
 }
 
 #[no_mangle]
+pub extern "C" fn flowecho_start_pairing(input_ptr: *const c_char) -> *mut c_char {
+    let service = FlowEchoService::shared();
+    with_request::<StartPairingRequest, _, _>(input_ptr, |req| service.start_pairing(req))
+}
+
+#[no_mangle]
 pub extern "C" fn flowecho_pair_device(input_ptr: *const c_char) -> *mut c_char {
-    let service = FlowEchoService::default();
+    let service = FlowEchoService::shared();
     with_request::<PairDeviceRequest, _, _>(input_ptr, |req| service.pair_device(req))
 }
 
 #[no_mangle]
+pub extern "C" fn flowecho_send_text(input_ptr: *const c_char) -> *mut c_char {
+    let service = FlowEchoService::shared();
+    with_request::<SendTextRequest, _, _>(input_ptr, |req| service.send_text(req))
+}
+
+#[no_mangle]
+pub extern "C" fn flowecho_send_file(input_ptr: *const c_char) -> *mut c_char {
+    let service = FlowEchoService::shared();
+    with_request::<SendFileRequest, _, _>(input_ptr, |req| service.send_file(req))
+}
+
+#[no_mangle]
+pub extern "C" fn flowecho_resume_transfer(input_ptr: *const c_char) -> *mut c_char {
+    let service = FlowEchoService::shared();
+    with_request::<ResumeTransferRequest, _, _>(input_ptr, |req| {
+        service.resume_transfer(req)
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn flowecho_publish_clipboard(input_ptr: *const c_char) -> *mut c_char {
-    let service = FlowEchoService::default();
+    let service = FlowEchoService::shared();
     with_request::<PublishClipboardRequest, _, _>(input_ptr, |req| service.publish_clipboard(req))
 }
 
 #[no_mangle]
 pub extern "C" fn flowecho_start_transfer(input_ptr: *const c_char) -> *mut c_char {
-    let service = FlowEchoService::default();
+    let service = FlowEchoService::shared();
     with_request::<StartTransferRequest, _, _>(input_ptr, |req| service.start_transfer(req))
 }
 
 #[no_mangle]
 pub extern "C" fn flowecho_apply_paste(input_ptr: *const c_char) -> *mut c_char {
-    let service = FlowEchoService::default();
+    let service = FlowEchoService::shared();
     with_request::<ApplyPasteRequest, _, _>(input_ptr, |req| service.apply_paste(req))
 }
 
 #[no_mangle]
 pub extern "C" fn flowecho_set_paste_policy(input_ptr: *const c_char) -> *mut c_char {
-    let service = FlowEchoService::default();
+    let service = FlowEchoService::shared();
     with_request::<PastePolicy, _, _>(input_ptr, |req| service.set_paste_policy(req))
 }
 

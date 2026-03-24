@@ -51,11 +51,22 @@ pub struct PairAuthentication {
     pub state: PairState,
 }
 
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct PairAcceptance {
+    pub challenge_id: String,
+    pub local_device_id: String,
+    pub local_alias: String,
+    pub local_public_key: String,
+    pub remote_trust: DeviceTrust,
+}
+
 #[derive(Debug, Default)]
 pub struct PairingCoordinator {
     next_challenge_id: u64,
     challenges: HashMap<String, PendingChallenge>,
     trusted_devices: HashMap<String, DeviceTrust>,
+    trusted_endpoints: HashMap<String, TrustedPeerRecord>,
+    session_keys_by_device: HashMap<String, [u8; 32]>,
 }
 
 impl PairingCoordinator {
@@ -86,10 +97,15 @@ impl PairingCoordinator {
         };
         let pending = PendingChallenge {
             challenge: challenge.clone(),
+            local_device_id: req.local_device_id,
+            local_alias: req.local_alias,
             local_private_key: keypair.private_key,
+            local_public_key: encode_hex_key(keypair.public_key),
             remote_device_id: None,
             remote_alias: None,
+            remote_port: None,
             session_key_id: None,
+            session_key: None,
         };
         self.challenges
             .insert(challenge.challenge_id.clone(), pending);
@@ -138,7 +154,82 @@ impl PairingCoordinator {
         pending.remote_device_id = Some(req.remote_device_id);
         pending.remote_alias = Some(req.remote_alias);
         pending.session_key_id = Some(auth.session_key_id.clone());
+        pending.session_key = Some(session_key);
         Ok(auth)
+    }
+
+    pub fn complete_network_pairing(
+        &mut self,
+        peer_ip: &str,
+        peer_port: u16,
+        remote_device_id: &str,
+        remote_alias: &str,
+        otp_code: &str,
+        remote_public_key: &str,
+        now_ms: u64,
+    ) -> FlowResult<PairAcceptance> {
+        let challenge_id = self
+            .find_active_challenge_id(peer_ip)
+            .ok_or_else(|| FlowError::new(ErrorCode::InvalidRequest, "challenge not found"))?;
+
+        {
+            let pending = self
+                .challenges
+                .get_mut(&challenge_id)
+                .ok_or_else(|| FlowError::new(ErrorCode::InvalidRequest, "challenge not found"))?;
+            pending.remote_port = Some(peer_port);
+        }
+
+        self.authenticate(
+            PairAuthenticationRequest {
+                challenge_id: challenge_id.clone(),
+                peer_ip: peer_ip.to_string(),
+                remote_device_id: remote_device_id.to_string(),
+                remote_alias: remote_alias.to_string(),
+                otp_code: otp_code.to_string(),
+                remote_public_key: remote_public_key.to_string(),
+            },
+            now_ms,
+        )?;
+
+        let trust = self.trust_authenticated(&challenge_id)?;
+        let pending = self
+            .challenges
+            .get(&challenge_id)
+            .ok_or_else(|| FlowError::new(ErrorCode::Internal, "missing accepted challenge"))?;
+
+        Ok(PairAcceptance {
+            challenge_id,
+            local_device_id: pending.local_device_id.clone(),
+            local_alias: pending.local_alias.clone(),
+            local_public_key: pending.local_public_key.clone(),
+            remote_trust: trust,
+        })
+    }
+
+    pub fn register_trusted_peer(
+        &mut self,
+        peer_ip: String,
+        peer_port: u16,
+        device_id: String,
+        alias: String,
+        session_key: [u8; 32],
+        session_key_id: String,
+    ) -> DeviceTrust {
+        let trust = DeviceTrust {
+            device_id: device_id.clone(),
+            alias,
+            trust_state: TrustState::Trusted,
+            session_key_id,
+        };
+        self.trusted_devices
+            .insert(device_id.clone(), trust.clone());
+        self.session_keys_by_device.insert(device_id.clone(), session_key);
+        self.trusted_endpoints.insert(
+            endpoint_key(&peer_ip, peer_port),
+            TrustedPeerRecord { trust: trust.clone() },
+        );
+        trust
     }
 
     pub fn trust_authenticated(&mut self, challenge_id: &str) -> FlowResult<DeviceTrust> {
@@ -171,6 +262,16 @@ impl PairingCoordinator {
         };
         self.trusted_devices
             .insert(trust.device_id.clone(), trust.clone());
+        if let Some(session_key) = pending.session_key {
+            self.session_keys_by_device
+                .insert(trust.device_id.clone(), session_key);
+        }
+        if let Some(remote_port) = pending.remote_port {
+            self.trusted_endpoints.insert(
+                endpoint_key(&pending.challenge.peer_ip, remote_port),
+                TrustedPeerRecord { trust: trust.clone() },
+            );
+        }
         Ok(trust)
     }
 
@@ -180,6 +281,33 @@ impl PairingCoordinator {
 
     pub fn trusted_device(&self, device_id: &str) -> Option<DeviceTrust> {
         self.trusted_devices.get(device_id).cloned()
+    }
+
+    pub fn trusted_device_for_endpoint(&self, peer_ip: &str, peer_port: u16) -> Option<DeviceTrust> {
+        self.trusted_endpoints
+            .get(&endpoint_key(peer_ip, peer_port))
+            .map(|record| record.trust.clone())
+    }
+
+    pub fn session_key_for_device(&self, device_id: &str) -> Option<[u8; 32]> {
+        self.session_keys_by_device.get(device_id).copied()
+    }
+
+    pub fn session_key_for_endpoint(&self, peer_ip: &str, peer_port: u16) -> Option<[u8; 32]> {
+        self.trusted_endpoints
+            .get(&endpoint_key(peer_ip, peer_port))
+            .and_then(|record| self.session_keys_by_device.get(&record.trust.device_id).copied())
+    }
+
+    fn find_active_challenge_id(&self, peer_ip: &str) -> Option<String> {
+        self.challenges
+            .iter()
+            .filter(|(_, pending)| {
+                pending.challenge.peer_ip == peer_ip
+                    && pending.challenge.state == PairState::ChallengeIssued
+            })
+            .max_by_key(|(_, pending)| pending.challenge.challenge_id.clone())
+            .map(|(challenge_id, _)| challenge_id.clone())
     }
 }
 
@@ -192,10 +320,20 @@ fn generate_otp_code() -> String {
 #[derive(Debug)]
 struct PendingChallenge {
     challenge: PairChallenge,
+    local_device_id: String,
+    local_alias: String,
     local_private_key: [u8; 32],
+    local_public_key: String,
     remote_device_id: Option<String>,
     remote_alias: Option<String>,
+    remote_port: Option<u16>,
     session_key_id: Option<String>,
+    session_key: Option<[u8; 32]>,
+}
+
+#[derive(Debug, Clone)]
+struct TrustedPeerRecord {
+    trust: DeviceTrust,
 }
 
 fn decode_hex_key(input: &str) -> FlowResult<[u8; 32]> {
@@ -214,6 +352,10 @@ fn decode_hex_key(input: &str) -> FlowResult<[u8; 32]> {
     Ok(output)
 }
 
+fn encode_hex_key(input: [u8; 32]) -> String {
+    input.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
 fn session_key_id(session_key: &[u8; 32]) -> String {
     let digest = Sha256::digest(session_key);
     format!(
@@ -224,4 +366,8 @@ fn session_key_id(session_key: &[u8; 32]) -> String {
             .map(|byte| format!("{byte:02x}"))
             .collect::<String>()
     )
+}
+
+fn endpoint_key(peer_ip: &str, peer_port: u16) -> String {
+    format!("{peer_ip}:{peer_port}")
 }

@@ -88,6 +88,15 @@ enum TransportSessionInner {
 }
 
 impl TransportSession {
+    pub fn peer_endpoint(&self) -> FlowResult<TransportEndpoint> {
+        match &self.inner {
+            TransportSessionInner::Tcp(stream) => stream
+                .peer_addr()
+                .map(TransportEndpoint::from_socket_addr)
+                .map_err(|err| map_io_error(err, "failed to resolve tcp peer address")),
+        }
+    }
+
     pub fn send_frame(&mut self, frame: &TransportFrame) -> FlowResult<()> {
         let encoded = encode_frame(frame);
         match &mut self.inner {

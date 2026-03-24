@@ -69,6 +69,10 @@ pub enum TransferPacket {
         text: String,
         hash: String,
     },
+    TextAck {
+        payload_id: String,
+        hash: String,
+    },
     FileOffer {
         plan: TransferPlan,
         resume_token: String,
@@ -222,7 +226,7 @@ impl TransferCoordinator {
         }
         if !self.inbound.contains_key(&resume_token) {
             let file_path = self.storage_dir.join(format!("{}.part", sha256_hex(resume_token.as_bytes())));
-            let sink = FileTransferSink::new(plan, file_path)?;
+            let sink = FileTransferSink::new(plan, file_path, resume_token.clone())?;
             self.inbound.insert(resume_token.clone(), sink);
         }
         self.resume_state(&resume_token)
@@ -362,10 +366,11 @@ struct FileTransferSink {
     chunk_plan_by_index: HashMap<u32, TransferChunkPlan>,
     acknowledged: BTreeSet<u32>,
     file_path: PathBuf,
+    resume_token: String,
 }
 
 impl FileTransferSink {
-    fn new(plan: TransferPlan, file_path: PathBuf) -> FlowResult<Self> {
+    fn new(plan: TransferPlan, file_path: PathBuf, resume_token: String) -> FlowResult<Self> {
         let chunk_plan_by_index = plan
             .chunks
             .iter()
@@ -385,6 +390,7 @@ impl FileTransferSink {
             chunk_plan_by_index,
             acknowledged: BTreeSet::new(),
             file_path,
+            resume_token,
         })
     }
 
@@ -448,7 +454,7 @@ impl FileTransferSink {
     fn ack(&self, last_error_code: Option<ErrorCode>) -> TransferAck {
         let missing_chunks = self.missing_chunks();
         TransferAck {
-            resume_token: String::new(),
+            resume_token: self.resume_token.clone(),
             received_bitmap: self.received_bitmap(),
             complete: missing_chunks.is_empty(),
             missing_chunks,
