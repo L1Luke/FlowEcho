@@ -1,0 +1,6 @@
+/target/
+/Cargo.lock
+/.dart-tool/
+/.dartServer/
+/.pub-cache/
+/FlowEcho.xcodeproj/project.xcworkspace/xcuserdata/
