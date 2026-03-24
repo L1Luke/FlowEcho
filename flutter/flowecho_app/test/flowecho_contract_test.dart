@@ -40,4 +40,49 @@ void main() {
     expect(json["app_scope"], "allow_list");
     expect(json["bypass_rules"], ["password_field", "rdp"]);
   });
+
+  test("pairing requests and transfer outcomes keep network wire keys", () {
+    final startPairing = StartPairingRequest(
+      localDeviceId: "ios-device",
+      localAlias: "iPhone",
+      peerIp: "192.168.31.20",
+    );
+    final pairDevice = PairDeviceRequest(
+      peerIp: "192.168.31.20",
+      peerPort: 47000,
+      otpCode: "123456",
+      localDeviceId: "ios-device",
+      localAlias: "iPhone",
+    );
+
+    expect(startPairing.toJson(), {
+      "local_device_id": "ios-device",
+      "local_alias": "iPhone",
+      "peer_ip": "192.168.31.20",
+    });
+    expect(pairDevice.toJson(), {
+      "peer_ip": "192.168.31.20",
+      "peer_port": 47000,
+      "otp_code": "123456",
+      "local_device_id": "ios-device",
+      "local_alias": "iPhone",
+    });
+  });
+
+  test("transfer outcome decodes resume state and missing chunks", () {
+    final outcome = TransferOutcome.fromJson({
+      "session_id": "tx-file-1",
+      "resume_token": "resume-file-1",
+      "state": "pending_resume",
+      "bytes_transferred": 4096,
+      "total_bytes": 8192,
+      "missing_chunks": [1, 3],
+      "message": "resume required",
+    });
+
+    expect(outcome.sessionId, "tx-file-1");
+    expect(outcome.state, TransferState.pendingResume);
+    expect(outcome.missingChunks, [1, 3]);
+    expect(outcome.message, "resume required");
+  });
 }

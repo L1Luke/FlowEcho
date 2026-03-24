@@ -12,18 +12,73 @@ enum PastePolicyMode { flowechoDefault, nativeDefault }
 
 enum AppScope { allApps, allowList, denyList }
 
-class PairDeviceRequest {
-  PairDeviceRequest({
-    required this.requestQr,
-    required this.verifyCode,
+enum TransferState { completed, pendingResume }
+
+class StartPairingRequest {
+  StartPairingRequest({
+    required this.localDeviceId,
+    required this.localAlias,
+    required this.peerIp,
   });
 
-  final String requestQr;
-  final String verifyCode;
+  final String localDeviceId;
+  final String localAlias;
+  final String peerIp;
 
   Map<String, Object?> toJson() => {
-        "request_qr": requestQr,
-        "verify_code": verifyCode,
+        "local_device_id": localDeviceId,
+        "local_alias": localAlias,
+        "peer_ip": peerIp,
+      };
+}
+
+class PairingChallenge {
+  PairingChallenge({
+    required this.peerIp,
+    required this.listenPort,
+    required this.otpCode,
+    required this.expiresAtMs,
+    required this.attemptsRemaining,
+  });
+
+  final String peerIp;
+  final int listenPort;
+  final String otpCode;
+  final int expiresAtMs;
+  final int attemptsRemaining;
+
+  factory PairingChallenge.fromJson(Map<String, Object?> json) {
+    return PairingChallenge(
+      peerIp: json["peer_ip"] as String,
+      listenPort: json["listen_port"] as int,
+      otpCode: json["otp_code"] as String,
+      expiresAtMs: json["expires_at_ms"] as int,
+      attemptsRemaining: json["attempts_remaining"] as int,
+    );
+  }
+}
+
+class PairDeviceRequest {
+  PairDeviceRequest({
+    required this.peerIp,
+    required this.peerPort,
+    required this.otpCode,
+    required this.localDeviceId,
+    required this.localAlias,
+  });
+
+  final String peerIp;
+  final int peerPort;
+  final String otpCode;
+  final String localDeviceId;
+  final String localAlias;
+
+  Map<String, Object?> toJson() => {
+        "peer_ip": peerIp,
+        "peer_port": peerPort,
+        "otp_code": otpCode,
+        "local_device_id": localDeviceId,
+        "local_alias": localAlias,
       };
 }
 
@@ -157,6 +212,99 @@ class TransferSession {
       offset: json["offset"] as int,
       resumeToken: json["resume_token"] as String,
       throughputHintKbps: json["throughput_hint_kbps"] as int,
+    );
+  }
+}
+
+class SendTextRequest {
+  SendTextRequest({
+    required this.peerIp,
+    required this.peerPort,
+    required this.text,
+  });
+
+  final String peerIp;
+  final int peerPort;
+  final String text;
+
+  Map<String, Object?> toJson() => {
+        "peer_ip": peerIp,
+        "peer_port": peerPort,
+        "text": text,
+      };
+}
+
+class SendFileRequest {
+  SendFileRequest({
+    required this.peerIp,
+    required this.peerPort,
+    required this.filePath,
+  });
+
+  final String peerIp;
+  final int peerPort;
+  final String filePath;
+
+  Map<String, Object?> toJson() => {
+        "peer_ip": peerIp,
+        "peer_port": peerPort,
+        "file_path": filePath,
+      };
+}
+
+class ResumeTransferRequest {
+  ResumeTransferRequest({
+    required this.peerIp,
+    required this.peerPort,
+    required this.resumeToken,
+  });
+
+  final String peerIp;
+  final int peerPort;
+  final String resumeToken;
+
+  Map<String, Object?> toJson() => {
+        "peer_ip": peerIp,
+        "peer_port": peerPort,
+        "resume_token": resumeToken,
+      };
+}
+
+class TransferOutcome {
+  TransferOutcome({
+    required this.sessionId,
+    required this.resumeToken,
+    required this.state,
+    required this.bytesTransferred,
+    required this.totalBytes,
+    required this.missingChunks,
+    required this.message,
+  });
+
+  final String sessionId;
+  final String resumeToken;
+  final TransferState state;
+  final int bytesTransferred;
+  final int totalBytes;
+  final List<int> missingChunks;
+  final String message;
+
+  factory TransferOutcome.fromJson(Map<String, Object?> json) {
+    return TransferOutcome(
+      sessionId: json["session_id"] as String,
+      resumeToken: json["resume_token"] as String,
+      state: TransferState.values.firstWhere(
+        (e) => switch (e) {
+          TransferState.completed => "completed",
+          TransferState.pendingResume => "pending_resume",
+        } == json["state"],
+      ),
+      bytesTransferred: json["bytes_transferred"] as int,
+      totalBytes: json["total_bytes"] as int,
+      missingChunks: (json["missing_chunks"] as List<dynamic>)
+          .map((item) => item as int)
+          .toList(),
+      message: json["message"] as String,
     );
   }
 }

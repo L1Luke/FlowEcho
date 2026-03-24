@@ -11,16 +11,23 @@ typedef _NativeHandlerDart = Pointer<Utf8> Function(Pointer<Utf8>);
 typedef _NativeFreeNative = Void Function(Pointer<Utf8>);
 typedef _NativeFreeDart = void Function(Pointer<Utf8>);
 
-/// Flutter -> Rust call path (Phase A):
-/// Dart FFI -> C ABI exported by `flowecho_core` -> Rust service layer.
-///
-/// iOS capability boundary:
-/// - This bridge only provides App-internal equivalent entry points.
-/// - iOS does not support cross-app global Cmd/Ctrl+V takeover.
 class FlowEchoBridgeFfi implements FlowEchoBridgeApi {
   FlowEchoBridgeFfi(DynamicLibrary lib)
-      : _pairDevice = lib.lookupFunction<_NativeHandlerNative, _NativeHandlerDart>(
+      : _startPairing = lib.lookupFunction<_NativeHandlerNative, _NativeHandlerDart>(
+          "flowecho_start_pairing",
+        ),
+        _pairDevice = lib.lookupFunction<_NativeHandlerNative, _NativeHandlerDart>(
           "flowecho_pair_device",
+        ),
+        _sendText = lib.lookupFunction<_NativeHandlerNative, _NativeHandlerDart>(
+          "flowecho_send_text",
+        ),
+        _sendFile = lib.lookupFunction<_NativeHandlerNative, _NativeHandlerDart>(
+          "flowecho_send_file",
+        ),
+        _resumeTransfer =
+            lib.lookupFunction<_NativeHandlerNative, _NativeHandlerDart>(
+          "flowecho_resume_transfer",
         ),
         _publishClipboard =
             lib.lookupFunction<_NativeHandlerNative, _NativeHandlerDart>(
@@ -39,7 +46,11 @@ class FlowEchoBridgeFfi implements FlowEchoBridgeApi {
           "flowecho_free_string",
         );
 
+  final _NativeHandlerDart _startPairing;
   final _NativeHandlerDart _pairDevice;
+  final _NativeHandlerDart _sendText;
+  final _NativeHandlerDart _sendFile;
+  final _NativeHandlerDart _resumeTransfer;
   final _NativeHandlerDart _publishClipboard;
   final _NativeHandlerDart _startTransfer;
   final _NativeHandlerDart _applyPaste;
@@ -47,9 +58,33 @@ class FlowEchoBridgeFfi implements FlowEchoBridgeApi {
   final _NativeFreeDart _freeString;
 
   @override
+  Future<PairingChallenge> startPairing(StartPairingRequest request) async {
+    final data = _invoke(_startPairing, request.toJson());
+    return PairingChallenge.fromJson(data);
+  }
+
+  @override
   Future<DeviceTrust> pairDevice(PairDeviceRequest request) async {
     final data = _invoke(_pairDevice, request.toJson());
     return DeviceTrust.fromJson(data);
+  }
+
+  @override
+  Future<TransferOutcome> sendText(SendTextRequest request) async {
+    final data = _invoke(_sendText, request.toJson());
+    return TransferOutcome.fromJson(data);
+  }
+
+  @override
+  Future<TransferOutcome> sendFile(SendFileRequest request) async {
+    final data = _invoke(_sendFile, request.toJson());
+    return TransferOutcome.fromJson(data);
+  }
+
+  @override
+  Future<TransferOutcome> resumeTransfer(ResumeTransferRequest request) async {
+    final data = _invoke(_resumeTransfer, request.toJson());
+    return TransferOutcome.fromJson(data);
   }
 
   @override
