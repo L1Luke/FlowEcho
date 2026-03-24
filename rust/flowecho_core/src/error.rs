@@ -13,6 +13,9 @@ pub enum ErrorCode {
     DecryptionFailed = 1102,
     PasteBypassed = 1200,
     TransferNotFound = 1300,
+    HashMismatch = 1301,
+    InvalidChunk = 1302,
+    TransferIncomplete = 1303,
     Internal = 9000,
 }
 
