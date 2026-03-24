@@ -128,7 +128,13 @@ pub fn decode_frame(reader: &mut impl Read) -> FlowResult<TransportFrame> {
     let mut body = vec![0u8; frame_len];
     reader
         .read_exact(&mut body)
-        .map_err(|err| map_io_error(err, "failed to read frame payload"))?;
+        .map_err(|err| match err.kind() {
+            io::ErrorKind::UnexpectedEof => FlowError::new(
+                ErrorCode::InvalidRequest,
+                "frame payload shorter than declared length",
+            ),
+            _ => map_io_error(err, "failed to read frame payload"),
+        })?;
 
     Ok(TransportFrame {
         frame_type: body[0],

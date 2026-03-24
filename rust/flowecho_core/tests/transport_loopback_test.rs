@@ -25,6 +25,13 @@ fn frame_codec_roundtrip_preserves_type_and_payload() {
 }
 
 #[test]
+fn truncated_frame_payload_maps_to_invalid_request() {
+    let err = decode_frame(&mut Cursor::new(vec![0, 0, 0, 5, 7, b'o']))
+        .expect_err("truncated frame must fail");
+    assert_eq!(err.code, ErrorCode::InvalidRequest);
+}
+
+#[test]
 fn tcp_loopback_sends_and_receives_frames_in_order() {
     let adapter = transport_adapter(TransportMode::Tcp);
     let listener = adapter.bind("127.0.0.1:0").expect("bind");
