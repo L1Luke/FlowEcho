@@ -31,15 +31,21 @@ fn payload_manifest_fields_are_stable() {
 #[test]
 fn pair_device_request_fields_are_stable() {
     let req = PairDeviceRequest {
-        request_qr: "qr://flowecho".to_string(),
-        verify_code: "8848".to_string(),
+        peer_ip: "192.168.1.12".to_string(),
+        peer_port: 45123,
+        otp_code: "884812".to_string(),
+        local_device_id: "iphone-15".to_string(),
+        local_alias: "iPhone 15".to_string(),
     };
     let value = serde_json::to_value(req).expect("serialize pair request");
     assert_eq!(
         value,
         json!({
-            "request_qr": "qr://flowecho",
-            "verify_code": "8848",
+            "peer_ip": "192.168.1.12",
+            "peer_port": 45123,
+            "otp_code": "884812",
+            "local_device_id": "iphone-15",
+            "local_alias": "iPhone 15",
         })
     );
 }
