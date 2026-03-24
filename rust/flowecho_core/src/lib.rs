@@ -1,6 +1,7 @@
 pub mod crypto;
 pub mod error;
 pub mod ffi;
+pub mod pairing;
 pub mod paste_router;
 pub mod protocol;
 pub mod service;
