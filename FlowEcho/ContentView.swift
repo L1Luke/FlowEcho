@@ -1,188 +1,183 @@
-//
-//  ContentView.swift
-//  FlowEcho
-//
-//  Created by Luke on 3/24/26.
-//
-
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct ContentView: View {
-    enum FlowPasteMode: String, CaseIterable {
-        case lowLatency = "低延迟"
-        case lowTraffic = "低流量"
-    }
-
-    @State private var mode: FlowPasteMode = .lowLatency
-    @State private var defaultSaveDirectory: String = "/Users/luke/Downloads"
-    @State private var maxAutoSyncBytes: String = ""
-    @State private var blockText: Bool = false
-    @State private var blockImage: Bool = false
-    @State private var blockFile: Bool = false
-    @State private var previewMessage: String = "点击“预览决策”查看当前策略效果"
-    @State private var localDeviceId: String = "ios-device"
-    @State private var localAlias: String = "iPhone"
-    @State private var peerIp: String = "192.168.31.20"
-    @State private var peerPort: String = "47000"
-    @State private var otpCode: String = ""
-    @State private var sendText: String = "hello lan"
-    @State private var filePath: String = "/tmp/demo.bin"
-    @State private var resumeToken: String = ""
-    @State private var pairingStatus: String = "未开始配对"
-    @State private var transferStatus: String = "未开始传输"
+    @StateObject private var model = FlowEchoLanViewModel()
+    @State private var isImportingFile = false
 
     var body: some View {
         NavigationStack {
             Form {
-                Section("FlowPaste 面板（MVP）") {
-                    Text("iOS 仅 App 内等价入口，不支持跨 App 全局接管。")
+                Section("使用说明") {
+                    Text("两台设备需在同一局域网。先在接收端输入发送端 IP 后点击“开始配对”，记下监听端口和 6 位 OTP；再在发送端填入接收端 IP、监听端口和 OTP，点击“确认配对”。")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    Text("iPhone 首次连接局域网会弹出权限提示。mac 端已打开 TCP client/server sandbox 权限。")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
 
-                Section("实网配对与实传（TCP）") {
-                    Text("真机局域网配对和实传由 Flutter + Rust bridge 执行；此页只保留 App 内受控入口，不做跨 App 全局粘贴接管。")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-
-                Section("模式") {
-                    Picker("同步策略", selection: $mode) {
-                        ForEach(FlowPasteMode.allCases, id: \.self) { option in
-                            Text(option.rawValue).tag(option)
+                Section("本机信息") {
+                    TextField("本机设备 ID", text: $model.localDeviceId)
+                        .flowEchoPlainTextInput()
+                    TextField("本机别名", text: $model.localAlias)
+                    if model.localAddresses.isEmpty {
+                        Text("未检测到可用局域网 IPv4 地址")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("本机 IPv4")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                            ForEach(model.localAddresses, id: \.self) { address in
+                                Text(address)
+                                    .textSelection(.enabled)
+                            }
                         }
                     }
-                    .pickerStyle(.segmented)
                 }
 
-                Section("保存策略") {
-                    TextField("默认保存目录", text: $defaultSaveDirectory)
+                Section("对端信息") {
+                    TextField("对端 IP", text: $model.peerIp)
                         .flowEchoPlainTextInput()
-                    TextField("自动同步上限（字节，可空）", text: $maxAutoSyncBytes)
+                    TextField("对端端口", text: $model.peerPort)
+                        .flowEchoNumericInput()
+                    TextField("6 位 OTP", text: $model.otpCode)
                         .flowEchoNumericInput()
                 }
 
-                Section("规则过滤") {
-                    Toggle("屏蔽文本", isOn: $blockText)
-                    Toggle("屏蔽图片", isOn: $blockImage)
-                    Toggle("屏蔽文件", isOn: $blockFile)
-                }
+                Section("配对") {
+                    HStack {
+                        Button("开始配对") {
+                            Task { await model.startPairing() }
+                        }
+                        .disabled(model.isWorking)
 
-                Section("决策预览") {
-                    Button("预览决策") {
-                        previewMessage = buildPreview()
+                        Button("确认配对") {
+                            Task { await model.pairDevice() }
+                        }
+                        .disabled(model.isWorking)
                     }
-                    Text(previewMessage)
+
+                    Text(model.pairingStatus)
                         .font(.footnote)
                         .foregroundStyle(.secondary)
-                }
 
-                Section("配对入口") {
-                    TextField("本机设备 ID", text: $localDeviceId)
-                        .flowEchoPlainTextInput()
-                    TextField("本机别名", text: $localAlias)
-                    TextField("对端 IP", text: $peerIp)
-                        .flowEchoPlainTextInput()
-                    TextField("对端端口", text: $peerPort)
-                        .flowEchoNumericInput()
-                    TextField("6 位 OTP", text: $otpCode)
-                        .flowEchoNumericInput()
-
-                    Button("开始配对") {
-                        let otp = generatedOtp()
-                        otpCode = otp
-                        peerPort = peerPort.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "47000" : peerPort
-                        pairingStatus = "challenge_issued: ip=\(peerIp), port=\(peerPort), otp=\(otp), ttl=60s"
+                    if let challenge = model.challenge {
+                        Text("challenge: port=\(challenge.listenPort), otp=\(challenge.otpCode), attempts=\(challenge.attemptsRemaining)")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
                     }
 
-                    Button("确认配对") {
-                        pairingStatus = buildPairingStatus()
+                    if let trust = model.trustedDevice {
+                        Text("trusted: \(trust.alias) / \(trust.deviceId)")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
                     }
-
-                    Text(pairingStatus)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
                 }
 
-                Section("传输入口") {
-                    TextField("发送文本", text: $sendText, axis: .vertical)
+                Section("传输") {
+                    TextField("发送文本", text: $model.sendText, axis: .vertical)
                         .lineLimit(2...4)
-                    TextField("发送文件路径", text: $filePath)
-                        .flowEchoPlainTextInput()
-                    TextField("恢复令牌", text: $resumeToken)
-                        .flowEchoPlainTextInput()
-
-                    Button("发送文本") {
-                        transferStatus = buildTransferStatus(kind: "text")
-                    }
-
-                    Button("发送文件") {
-                        if resumeToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                            resumeToken = "resume-\(Int(Date().timeIntervalSince1970))"
+                    HStack {
+                        TextField("发送文件路径", text: $model.filePath)
+                            .flowEchoPlainTextInput()
+                        Button("选择文件") {
+                            isImportingFile = true
                         }
-                        transferStatus = buildTransferStatus(kind: "file")
+                    }
+                    TextField("恢复令牌", text: $model.resumeToken)
+                        .flowEchoPlainTextInput()
+
+                    HStack {
+                        Button("发送文本") {
+                            Task { await model.sendTextPacket() }
+                        }
+                        .disabled(model.isWorking)
+
+                        Button("发送文件") {
+                            Task { await model.sendFilePacket() }
+                        }
+                        .disabled(model.isWorking)
+
+                        Button("恢复传输") {
+                            Task { await model.resumeTransferPacket() }
+                        }
+                        .disabled(model.isWorking)
                     }
 
-                    Button("恢复传输") {
-                        transferStatus = buildTransferStatus(kind: "resume")
+                    Text(model.transferStatus)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                }
+
+                Section("最近接收") {
+                    if let latestText = model.latestReceivedText {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("文本来自 \(latestText.peerIp)")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                            Text(latestText.text)
+                        }
+                    } else {
+                        Text("暂无文本")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
                     }
 
-                    Text(transferStatus)
+                    if let latestFile = model.latestReceivedFile {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("文件来自 \(latestFile.peerIp)")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                            Text(latestFile.filePath)
+                                .textSelection(.enabled)
+                            if FileManager.default.fileExists(atPath: latestFile.filePath) {
+                                ShareLink(
+                                    item: URL(fileURLWithPath: latestFile.filePath),
+                                    preview: SharePreview("FlowEcho Received File")
+                                ) {
+                                    Text("导出最近收到的文件")
+                                }
+                            }
+                        }
+                    } else {
+                        Text("暂无文件")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Text(model.inboxStatus)
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
             }
-            .navigationTitle("FlowEcho")
+            .navigationTitle("FlowEcho LAN Test")
         }
-    }
-
-    private func buildPreview() -> String {
-        let blockedKinds = [
-            blockText ? "text" : nil,
-            blockImage ? "image" : nil,
-            blockFile ? "file" : nil
-        ]
-            .compactMap { $0 }
-            .joined(separator: ",")
-
-        let maxText = maxAutoSyncBytes.trimmingCharacters(in: .whitespacesAndNewlines)
-        let limit = maxText.isEmpty ? "none" : maxText
-
-        switch mode {
-        case .lowLatency:
-            return "mode=low_latency, blocked=[\(blockedKinds)], max=\(limit), action=copy即同步"
-        case .lowTraffic:
-            return "mode=low_traffic, blocked=[\(blockedKinds)], max=\(limit), action=粘贴时请求"
+        .task {
+            model.startPolling()
         }
-    }
-
-    private func buildPairingStatus() -> String {
-        let trimmedOtp = otpCode.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmedOtp.count != 6 {
-            return "otp_invalid: 请输入 6 位 OTP"
+        .onDisappear {
+            model.stopPolling()
         }
-        return "trusted: local=\(localDeviceId), alias=\(localAlias), peer=\(peerIp):\(peerPort)"
-    }
-
-    private func buildTransferStatus(kind: String) -> String {
-        switch kind {
-        case "text":
-            let count = sendText.count
-            return "completed: text \(count)/\(count) bytes -> \(peerIp):\(peerPort)"
-        case "file":
-            return "pending_resume: file=\(filePath), resume=\(resumeToken), peer=\(peerIp):\(peerPort)"
-        default:
-            let token = resumeToken.trimmingCharacters(in: .whitespacesAndNewlines)
-            if token.isEmpty {
-                return "pending_resume: 请输入 resume token"
+        .fileImporter(
+            isPresented: $isImportingFile,
+            allowedContentTypes: [.item],
+            allowsMultipleSelection: false
+        ) { result in
+            switch result {
+            case .success(let urls):
+                guard let url = urls.first else {
+                    return
+                }
+                model.updateFilePath(url.path(percentEncoded: false))
+            case .failure(let error):
+                model.transferStatus = error.localizedDescription
             }
-            return "completed: resumed token=\(token), peer=\(peerIp):\(peerPort)"
         }
-    }
-
-    private func generatedOtp() -> String {
-        let value = Int.random(in: 0...999_999)
-        return String(format: "%06d", value)
     }
 }
 
