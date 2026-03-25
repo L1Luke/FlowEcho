@@ -82,6 +82,22 @@ pub extern "C" fn flowecho_resume_transfer(input_ptr: *const c_char) -> *mut c_c
 }
 
 #[no_mangle]
+pub extern "C" fn flowecho_latest_received_text(input_ptr: *const c_char) -> *mut c_char {
+    let service = FlowEchoService::shared();
+    with_request::<serde_json::Value, _, _>(input_ptr, |_| {
+        Ok(service.latest_received_text())
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn flowecho_latest_received_file(input_ptr: *const c_char) -> *mut c_char {
+    let service = FlowEchoService::shared();
+    with_request::<serde_json::Value, _, _>(input_ptr, |_| {
+        Ok(service.latest_received_file())
+    })
+}
+
+#[no_mangle]
 pub extern "C" fn flowecho_publish_clipboard(input_ptr: *const c_char) -> *mut c_char {
     let service = FlowEchoService::shared();
     with_request::<PublishClipboardRequest, _, _>(input_ptr, |req| service.publish_clipboard(req))

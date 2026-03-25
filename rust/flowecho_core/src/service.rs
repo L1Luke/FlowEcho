@@ -34,14 +34,14 @@ const PAIR_AUTH_FRAME_TYPE: u8 = 0x11;
 const PAIR_AUTH_RESPONSE_FRAME_TYPE: u8 = 0x12;
 const TRANSFER_HELLO_FRAME_TYPE: u8 = 0x20;
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct ReceivedTextPayload {
     pub peer_ip: String,
     pub payload_id: String,
     pub text: String,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct ReceivedFilePayload {
     pub peer_ip: String,
     pub payload_id: String,

@@ -5,7 +5,7 @@ edition = "2021"
 
 [lib]
 name = "flowecho_core"
-crate-type = ["rlib", "cdylib"]
+crate-type = ["rlib", "cdylib", "staticlib"]
 
 [dependencies]
 bincode = "1.3"
