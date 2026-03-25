@@ -57,10 +57,9 @@ struct ContentView: View {
 
                 Section("保存策略") {
                     TextField("默认保存目录", text: $defaultSaveDirectory)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
+                        .flowEchoPlainTextInput()
                     TextField("自动同步上限（字节，可空）", text: $maxAutoSyncBytes)
-                        .keyboardType(.numberPad)
+                        .flowEchoNumericInput()
                 }
 
                 Section("规则过滤") {
@@ -80,16 +79,14 @@ struct ContentView: View {
 
                 Section("配对入口") {
                     TextField("本机设备 ID", text: $localDeviceId)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
+                        .flowEchoPlainTextInput()
                     TextField("本机别名", text: $localAlias)
                     TextField("对端 IP", text: $peerIp)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
+                        .flowEchoPlainTextInput()
                     TextField("对端端口", text: $peerPort)
-                        .keyboardType(.numberPad)
+                        .flowEchoNumericInput()
                     TextField("6 位 OTP", text: $otpCode)
-                        .keyboardType(.numberPad)
+                        .flowEchoNumericInput()
 
                     Button("开始配对") {
                         let otp = generatedOtp()
@@ -111,11 +108,9 @@ struct ContentView: View {
                     TextField("发送文本", text: $sendText, axis: .vertical)
                         .lineLimit(2...4)
                     TextField("发送文件路径", text: $filePath)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
+                        .flowEchoPlainTextInput()
                     TextField("恢复令牌", text: $resumeToken)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
+                        .flowEchoPlainTextInput()
 
                     Button("发送文本") {
                         transferStatus = buildTransferStatus(kind: "text")
@@ -193,4 +188,26 @@ struct ContentView: View {
 
 #Preview {
     ContentView()
+}
+
+private extension View {
+    @ViewBuilder
+    func flowEchoPlainTextInput() -> some View {
+#if os(iOS) || os(visionOS)
+        self
+            .textInputAutocapitalization(.never)
+            .autocorrectionDisabled()
+#else
+        self
+#endif
+    }
+
+    @ViewBuilder
+    func flowEchoNumericInput() -> some View {
+#if os(iOS) || os(visionOS)
+        self.keyboardType(.numberPad)
+#else
+        self
+#endif
+    }
 }
