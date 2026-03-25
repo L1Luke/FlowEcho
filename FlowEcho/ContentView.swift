@@ -2,14 +2,31 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct ContentView: View {
+    private enum PairingRole: String, CaseIterable, Identifiable {
+        case receiver
+        case sender
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .receiver:
+                return "接收端"
+            case .sender:
+                return "发送端"
+            }
+        }
+    }
+
     @StateObject private var model = FlowEchoLanViewModel()
     @State private var isImportingFile = false
+    @State private var pairingRole: PairingRole = .receiver
 
     var body: some View {
         NavigationStack {
             Form {
                 Section("使用说明") {
-                    Text("两台设备需在同一局域网。先在接收端输入发送端 IP 后点击“开始配对”，记下监听端口和 6 位 OTP；再在发送端填入接收端 IP、监听端口和 OTP，点击“确认配对”。")
+                    Text("两台设备需在同一局域网。接收端只点“开始配对”生成 OTP；发送端只点“确认配对”提交对端显示的端口和 OTP。不要在同一台设备上连续点这两个按钮。")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                     Text("iPhone 首次连接局域网会弹出权限提示。mac 端已打开 TCP client/server sandbox 权限。")
@@ -38,37 +55,60 @@ struct ContentView: View {
                     }
                 }
 
-                Section("对端信息") {
-                    TextField("对端 IP", text: $model.peerIp)
-                        .flowEchoPlainTextInput()
-                    TextField("对端端口", text: $model.peerPort)
-                        .flowEchoNumericInput()
-                    TextField("6 位 OTP", text: $model.otpCode)
-                        .flowEchoNumericInput()
+                Section("配对角色") {
+                    Picker("角色", selection: $pairingRole) {
+                        ForEach(PairingRole.allCases) { role in
+                            Text(role.title).tag(role)
+                        }
+                    }
+                    .pickerStyle(.segmented)
                 }
 
                 Section("配对") {
-                    HStack {
+                    if pairingRole == .receiver {
+                        Text("接收端：填写允许来连接的发送端 IP，然后只点“开始配对”。")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                        TextField("发送端 IP", text: $model.peerIp)
+                            .flowEchoPlainTextInput()
+
                         Button("开始配对") {
                             Task { await model.startPairing() }
                         }
                         .disabled(model.isWorking)
+                    } else {
+                        Text("发送端：填写接收端 IP、接收端显示的端口和 OTP，然后只点“确认配对”。")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                        TextField("接收端 IP", text: $model.peerIp)
+                            .flowEchoPlainTextInput()
+                        TextField("接收端端口", text: $model.peerPort)
+                            .flowEchoNumericInput()
+                        TextField("接收端 6 位 OTP", text: $model.otpCode)
+                            .flowEchoNumericInput()
 
                         Button("确认配对") {
                             Task { await model.pairDevice() }
                         }
                         .disabled(model.isWorking)
-                    }
+                    } 
 
                     Text(model.pairingStatus)
                         .font(.footnote)
                         .foregroundStyle(.secondary)
 
                     if let challenge = model.challenge {
-                        Text("challenge: port=\(challenge.listenPort), otp=\(challenge.otpCode), attempts=\(challenge.attemptsRemaining)")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                            .textSelection(.enabled)
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("本机已生成配对口令")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                            Text("监听端口: \(challenge.listenPort)")
+                            Text("OTP: \(challenge.otpCode)")
+                            Text("剩余尝试: \(challenge.attemptsRemaining)")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                        .textSelection(.enabled)
                     }
 
                     if let trust = model.trustedDevice {

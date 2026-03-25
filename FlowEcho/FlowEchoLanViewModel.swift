@@ -65,18 +65,26 @@ final class FlowEchoLanViewModel: ObservableObject {
                 try bridge.startPairing(request)
             }
             self.challenge = challenge
-            self.otpCode = challenge.otpCode
-            self.peerPort = String(challenge.listenPort)
             self.pairingStatus = "OTP 已签发，60 秒有效，剩余尝试 \(challenge.attemptsRemaining) 次"
         }
     }
 
     func pairDevice() async {
         await runPairingAction { [self] in
+            let peerPort = try self.normalizedPeerPort()
+            let otpCode = try self.normalizedOtpCode()
+            if let challenge = self.challenge,
+               otpCode == challenge.otpCode,
+               peerPort == challenge.listenPort {
+                throw FlowEchoRpcError(
+                    code: -1,
+                    message: "这台设备当前是发码端。请在另一台设备上输入这里显示的 OTP 和端口，再点确认配对。"
+                )
+            }
             let request = FlowEchoPairDeviceRequest(
                 peerIp: try self.normalizedPeerIp(),
-                peerPort: try self.normalizedPeerPort(),
-                otpCode: try self.normalizedOtpCode(),
+                peerPort: peerPort,
+                otpCode: otpCode,
                 localDeviceId: try self.normalizedLocalDeviceId(),
                 localAlias: try self.normalizedLocalAlias()
             )
