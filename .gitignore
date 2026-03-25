@@ -1,9 +1,13 @@
 /target/
 /Cargo.lock
+/.worktrees/
+/worktrees/
 /.dart-tool/
 /.dartServer/
 /.pub-cache/
+/FlowEcho.xcodeproj/xcuserdata/
 /FlowEcho.xcodeproj/project.xcworkspace/xcuserdata/
+*.xcuserstate
 /flutter/flowecho_app/.dart_tool/
 /flutter/flowecho_app/pubspec.lock
 /flutter/flowecho_app/build/
